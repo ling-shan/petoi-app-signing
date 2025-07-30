@@ -83,12 +83,37 @@ jobs:
           end tell
           EOD
           
-          # 创建最终DMG文件
-          hdiutil create -volname "Petoi Desktop App" \
-            -srcfolder "dist/dmg" \
-            -ov -format UDZO \
-            -imagekey zlib-level=9 \
-            "dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg"
+      # 创建最终DMG文件
+      - name: Create Final DMG
+        run: hdiutil create -volname "Petoi Desktop App" -srcfolder "dist/dmg" -ov -format UDZO -imagekey zlib-level=9 "dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg"
+        shell: /bin/bash -e {0}
+      - name: Set DMG Window Configuration
+        run: |
+          DMG_PATH="dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg"
+          osascript <<EOD
+          tell application "Finder"
+            tell disk image "$DMG_PATH"
+              open
+              set current view of container window to icon view
+              set toolbar visible of container window to false
+              set statusbar visible of container window to false
+              set the bounds of container window to {400, 200, 940, 580}
+              set viewOptions to the icon view options of container window
+              set arrangement of viewOptions to not arranged
+              set icon size of viewOptions to 100
+              set background picture of viewOptions to file ".background:background.jpg"
+              
+              # 设置应用和Applications链接的位置
+              set position of item "${{ github.event.inputs.app_name }}" of container window to {180, 200}
+              set position of item "Applications" of container window to {420, 200}
+              
+              close
+              open
+              update without registering applications
+              delay 2
+            end tell
+          end tell
+          EOD
 
       - name: Sign the DMG
         run: |
@@ -122,4 +147,4 @@ jobs:
         with:
           name: Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg
           path: dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg
-          retention-days: 30    
+          retention-days: 30
