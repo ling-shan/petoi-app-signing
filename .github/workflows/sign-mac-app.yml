@@ -22,8 +22,8 @@ jobs:
 
       - name: Mount DMG
         run: |
-          mkdir -p /Volumes/temp_dmg
-          hdiutil attach ${{ github.event.inputs.dmg_path }} -mountpoint /Volumes/temp_dmg -nobrowse -noverify -noautoopen
+          mkdir -p temp_dmg
+          hdiutil attach ${{ github.event.inputs.dmg_path }} -mountpoint temp_dmg -nobrowse -noverify -noautoopen
 
       - name: Import Developer Certificates
         uses: apple-actions/import-codesign-certs@v2
@@ -33,7 +33,7 @@ jobs:
 
       - name: Code Sign the App
         run: |
-          APP_PATH="/Volumes/temp_dmg/${{ github.event.inputs.app_name }}"
+          APP_PATH="temp_dmg/${{ github.event.inputs.app_name }}"
           echo "Signing app at path: $APP_PATH"
           
           if [ ! -d "$APP_PATH" ]; then
@@ -49,14 +49,14 @@ jobs:
 
       - name: Unmount DMG
         run: |
-          hdiutil detach /Volumes/temp_dmg -force
+          hdiutil detach temp_dmg -force
 
       - name: Create New DMG
         run: |
           mkdir -p dist
           
           hdiutil create -volname "Signed_${{ github.event.inputs.app_name }}" \
-            -srcfolder "/Volumes/temp_dmg" \
+            -srcfolder "temp_dmg" \
             -ov -format UDZO "dist/signed_${{ github.event.inputs.dmg_path }}"
 
       - name: Sign the DMG
@@ -94,4 +94,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: signed-${{ github.event.inputs.dmg_path }}
-          path: dist/signed_${{ github.event.inputs.dmg_path }}    
+          path: dist/signed_${{ github.event.inputs.dmg_path }}
