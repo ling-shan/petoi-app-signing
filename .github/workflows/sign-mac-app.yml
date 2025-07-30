@@ -49,9 +49,8 @@ jobs:
             -srcfolder "mac/Petoi Desktop App.app" \
             -ov -format UDZO -imagekey zlib-level=9 \
             -fs HFS+ -layout SPUD \
-            -srcfolder "mac/Petoi Desktop App.app" \
-            -icon "mac/logo.icns" \
-            -background "mac/Make_for_dmg.jpg" \
+          -srcfolder "mac/Petoi Desktop App.app" \
+          -background "mac/Make_for_dmg.jpg" \
             "dist/Petoi_Desktop_App.dmg"
 
       - name: Sign the DMG
