@@ -55,7 +55,7 @@ jobs:
         run: |
           mkdir -p dist
           
-          hdiutil create -volname "Signed_${{ github.event.inputs.app_name%.* }}" \
+          hdiutil create -volname "Signed_${{ github.event.inputs.app_name }}" \
             -srcfolder "/Volumes/temp_dmg" \
             -ov -format UDZO "dist/signed_${{ github.event.inputs.dmg_path }}"
 
@@ -64,7 +64,10 @@ jobs:
           DMG_PATH="dist/signed_${{ github.event.inputs.dmg_path }}"
           
           # 使用Developer ID Installer证书签名DMG
-          codesign --sign "Developer ID Installer: Your Name (TEAMID)" \
+          # codesign --sign "Developer ID Installer: Your Name (TEAMID)" \
+          #   --timestamp --options runtime "$DMG_PATH"
+
+          codesign --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" \
             --timestamp --options runtime "$DMG_PATH"
           
           # 验证DMG签名
