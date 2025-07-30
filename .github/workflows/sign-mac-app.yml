@@ -10,7 +10,7 @@ on:
       app_version:
         description: 'App version (used in DMG filename)'
         required: true
-        default: '1.0.0'
+        default: '1.2.5'
 
 jobs:
   build-and-package:
