@@ -41,10 +41,6 @@ jobs:
           
           codesign -dv --verbose=4 "$APP_PATH"
 
-      - name: Unmount DMG
-        run: |
-          hdiutil detach temp_dmg -force
-
       - name: Create DMG from Signed App
         run: |
           mkdir -p dist
