@@ -1,4 +1,4 @@
-name: Sign and Notarize Petoi Desktop App and Create DMG
+name: Sign, Notarize and Package Petoi Desktop App
 
 on:
   workflow_dispatch:
@@ -7,16 +7,20 @@ on:
         description: 'App name in DMG (e.g., Petoi Desktop App.app)'
         required: true
         default: 'Petoi Desktop App.app'
+      app_version:
+        description: 'App version (used in DMG filename)'
+        required: true
+        default: '1.0.0'
 
 jobs:
-  # sign for python2app mac app
-  sign-and-notarize:
+  build-and-package:
     runs-on: macos-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      - name: Unzip Petoi Desktop App.zip
+
+      - name: Unzip Application
         run: unzip mac/Petoi\ Desktop\ App.zip -d mac/
 
       - name: Import Developer Certificates
@@ -24,14 +28,15 @@ jobs:
         with:
           p12-file-base64: ${{ secrets.MAC_CERTIFICATE_DATA }}
           p12-password: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+          keychain: build.keychain
 
-      - name: Code Sign the Unzipped App
+      - name: Code Sign the Application
         run: |
-          APP_PATH="mac/Petoi Desktop App.app"
-          echo "Signing unzipped app at path: $APP_PATH"
+          APP_PATH="mac/${{ github.event.inputs.app_name }}"
+          echo "Signing application at path: $APP_PATH"
           
           if [ ! -d "$APP_PATH" ]; then
-            echo "Error: App not found at path $APP_PATH"
+            echo "Error: Application not found at path $APP_PATH"
             exit 1
           fi
           
@@ -41,30 +46,57 @@ jobs:
           
           codesign -dv --verbose=4 "$APP_PATH"
 
-      - name: Create DMG from Signed App
+      - name: Create DMG with Custom Background
         run: |
-          mkdir -p dist
+          # 创建临时目录用于构建DMG内容
+          mkdir -p dist/dmg
+          cp -R "mac/${{ github.event.inputs.app_name }}" dist/dmg/
+          ln -s /Applications dist/dmg/Applications
           
+          # 准备背景图片
+          mkdir -p dist/dmg/.background
+          cp mac/Make_for_dmg.jpg dist/dmg/.background/background.jpg
+          
+          # 使用AppleScript配置DMG窗口
+          osascript <<EOD
+          tell application "Finder"
+            tell disk "Petoi Desktop App"
+              open
+              set current view of container window to icon view
+              set toolbar visible of container window to false
+              set statusbar visible of container window to false
+              set the bounds of container window to {400, 200, 940, 580}
+              set viewOptions to the icon view options of container window
+              set arrangement of viewOptions to not arranged
+              set icon size of viewOptions to 100
+              set background picture of viewOptions to file ".background:background.jpg"
+              
+              # 设置应用和Applications链接的位置
+              set position of item "${{ github.event.inputs.app_name }}" of container window to {180, 200}
+              set position of item "Applications" of container window to {420, 200}
+              
+              close
+              open
+              update without registering applications
+              delay 2
+            end tell
+          end tell
+          EOD
+          
+          # 创建最终DMG文件
           hdiutil create -volname "Petoi Desktop App" \
-            -srcfolder "mac/Petoi Desktop App.app" \
-            -ov -format UDZO -imagekey zlib-level=9 \
-            -fs HFS+ -layout SPUD \
-          -srcfolder "mac/Petoi Desktop App.app" \
-          -background "mac/Make_for_dmg.jpg" \
-            "dist/Petoi_Desktop_App.dmg"
+            -srcfolder "dist/dmg" \
+            -ov -format UDZO \
+            -imagekey zlib-level=9 \
+            "dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg"
 
       - name: Sign the DMG
         run: |
-          DMG_PATH="dist/signed_${{ github.event.inputs.dmg_path }}"
+          DMG_PATH="dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg"
           
-          # 使用Developer ID Installer证书签名DMG
-          # codesign --sign "Developer ID Installer: Your Name (TEAMID)" \
-          #   --timestamp --options runtime "$DMG_PATH"
-
           codesign --sign "Developer ID Installer: Petoi LLC (H98JHTT3JH)" \
             --timestamp --options runtime "$DMG_PATH"
           
-          # 验证DMG签名
           codesign -dv --verbose=4 "$DMG_PATH"
 
       - name: Notarize the DMG
@@ -73,7 +105,7 @@ jobs:
           APPLE_ID_PWD: ${{ secrets.APPLE_ID_PWD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          DMG_PATH="dist/signed_${{ github.event.inputs.dmg_path }}"
+          DMG_PATH="dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg"
           
           # 提交DMG进行公证
           xcrun notarytool submit "$DMG_PATH" \
@@ -82,10 +114,12 @@ jobs:
             --team-id "$APPLE_TEAM_ID" \
             --wait
           
+          # 附加公证结果
           xcrun stapler staple "$DMG_PATH"
 
       - name: Upload Signed DMG
         uses: actions/upload-artifact@v4
         with:
-          name: signed-${{ github.event.inputs.dmg_path }}
-          path: dist/signed_${{ github.event.inputs.dmg_path }}
+          name: Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg
+          path: dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg
+          retention-days: 30    
