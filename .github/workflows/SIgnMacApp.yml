@@ -47,16 +47,22 @@ jobs:
           codesign -dv --verbose=4 "$APP_PATH"
 
       - name: Create DMG with Custom Background
+        # 创建临时目录用于构建DMG内容
         run: |
-          # 创建临时目录用于构建DMG内容
+          echo "开始创建dist/dmg目录"
           mkdir -p dist/dmg
+          echo "dist/dmg目录创建完成,检查目录是否存在: $(test -d dist/dmg && echo '存在' || echo '不存在')"
           cp -R "mac/${{ github.event.inputs.app_name }}" dist/dmg/
+          echo "应用程序复制完成,检查dist/dmg目录下是否存在应用程序: $(ls -l dist/dmg/${{ github.event.inputs.app_name }} 2>/dev/null | grep -q '^d' && echo '存在' || echo '不存在')"
           ln -s /Applications dist/dmg/Applications
-          
+          echo "Applications链接创建完成,检查链接是否存在: $(test -L dist/dmg/Applications && echo '存在' || echo '不存在')"
           # 准备背景图片
+          echo "开始创建dist/dmg/.background目录"
           mkdir -p dist/dmg/.background
+          echo "dist/dmg/.background目录创建完成,检查目录是否存在: $(test -d dist/dmg/.background && echo '存在' || echo '不存在')"
           cp mac/Make_for_dmg.jpg dist/dmg/.background/background.jpg
-          
+          echo "背景图片复制完成,检查背景图片是否存在: $(test -f dist/dmg/.background/background.jpg && echo '存在' || echo '不存在')"
+                  
           # 使用AppleScript配置DMG窗口
           osascript <<EOD
           tell application "Finder"
