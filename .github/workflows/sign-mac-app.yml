@@ -1,12 +1,8 @@
-name: Sign and Notarize Existing DMG
+name: Sign and Notarize Petoi Desktop App and Create DMG
 
 on:
   workflow_dispatch:
     inputs:
-      dmg_path:
-        description: 'DMG file path (relative to the repository root)'
-        required: true
-        default: 'PetoiDesktopInstaller.dmg'
       app_name:
         description: 'App name in DMG (e.g., Petoi Desktop App.app)'
         required: true
@@ -20,11 +16,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Mount DMG
-        run: |
-          mkdir -p temp_dmg
-          hdiutil attach ${{ github.event.inputs.dmg_path }} -mountpoint temp_dmg -nobrowse -noverify -noautoopen
+      - name: Unzip Petoi Desktop App.zip
+        run: unzip mac/Petoi\ Desktop\ App.zip -d mac/
 
       - name: Import Developer Certificates
         uses: apple-actions/import-codesign-certs@v2
@@ -32,10 +25,10 @@ jobs:
           p12-file-base64: ${{ secrets.MAC_CERTIFICATE_DATA }}
           p12-password: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
 
-      - name: Code Sign the App
+      - name: Code Sign the Unzipped App
         run: |
-          APP_PATH="temp_dmg/${{ github.event.inputs.app_name }}"
-          echo "Signing app at path: $APP_PATH"
+          APP_PATH="mac/Petoi Desktop App.app"
+          echo "Signing unzipped app at path: $APP_PATH"
           
           if [ ! -d "$APP_PATH" ]; then
             echo "Error: App not found at path $APP_PATH"
@@ -52,13 +45,18 @@ jobs:
         run: |
           hdiutil detach temp_dmg -force
 
-      - name: Create New DMG
+      - name: Create DMG from Signed App
         run: |
           mkdir -p dist
           
-          hdiutil create -volname "Signed_${{ github.event.inputs.app_name }}" \
-            -srcfolder "temp_dmg" \
-            -ov -format UDZO "dist/signed_${{ github.event.inputs.dmg_path }}"
+          hdiutil create -volname "Petoi Desktop App" \
+            -srcfolder "mac/Petoi Desktop App.app" \
+            -ov -format UDZO -imagekey zlib-level=9 \
+            -fs HFS+ -layout SPUD \
+            -srcfolder "mac/Petoi Desktop App.app" \
+            -icon "mac/logo.icns" \
+            -background "mac/Make_for_dmg.jpg" \
+            "dist/Petoi_Desktop_App.dmg"
 
       - name: Sign the DMG
         run: |
@@ -68,7 +66,7 @@ jobs:
           # codesign --sign "Developer ID Installer: Your Name (TEAMID)" \
           #   --timestamp --options runtime "$DMG_PATH"
 
-          codesign --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" \
+          codesign --sign "Developer ID Installer: Petoi LLC (H98JHTT3JH)" \
             --timestamp --options runtime "$DMG_PATH"
           
           # 验证DMG签名
