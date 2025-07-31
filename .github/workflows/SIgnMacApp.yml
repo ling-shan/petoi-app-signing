@@ -73,6 +73,8 @@ jobs:
         run: |
           DMG_PATH="dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg"
           
+          # Developer ID Installer
+          # Developer ID Application
           codesign --sign "Developer ID Installer: Petoi LLC (H98JHTT3JH)" \
             --timestamp --options runtime "$DMG_PATH"
           
