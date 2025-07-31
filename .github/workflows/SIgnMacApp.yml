@@ -166,7 +166,7 @@ jobs:
             "dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg" \
             "dist/dmg/"
 
-      - name: Notarize DMG (含日志)
+      - name: Notarize DMG
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_ID_PWD: ${{ secrets.APPLE_ID_PWD }}
@@ -193,9 +193,12 @@ jobs:
           xcrun stapler staple "$DMG_PATH"
           xcrun stapler validate "$DMG_PATH"
 
-      - name: Final Verification (仅验证 DMG 本身)
+      - name: Final Verification
         run: |
           DMG_PATH="dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg"
+          APP_NAME="${{ github.event.inputs.app_name }}"
+          TEMP_MOUNT="/tmp/dmg_mount"  # 临时挂载点
+
           echo "验证 DMG 完整性和公证状态: $DMG_PATH"
           
           # 1. 检查 DMG 镜像是否损坏（底层数据完整性）
@@ -207,6 +210,47 @@ jobs:
           # 2. 验证 DMG 的公证凭证是否有效（核心验证）
           xcrun stapler validate "$DMG_PATH" || {
             echo "❌ DMG 公证凭证无效或未绑定"
+            exit 1
+          }
+
+          # 创建临时挂载点
+          mkdir -p "$TEMP_MOUNT"
+          
+          # 挂载 DMG 到临时目录（只读模式，避免修改）
+          echo "挂载 DMG 到临时目录: $TEMP_MOUNT"
+          hdiutil attach "$DMG_PATH" -mountpoint "$TEMP_MOUNT" -readonly -nobrowse || {
+            echo "❌ 挂载 DMG 失败"
+            exit 1
+          }
+          
+          # 检查 DMG 内的 App 是否存在
+          APP_IN_DMG="$TEMP_MOUNT/$APP_NAME"
+          if [ ! -d "$APP_IN_DMG" ]; then
+            echo "❌ DMG 内未找到 App: $APP_IN_DMG"
+            hdiutil detach "$TEMP_MOUNT" || true  # 失败也尝试卸载
+            exit 1
+          fi
+          
+          # 验证 App 的签名完整性（深度检查所有嵌套组件）
+          echo "验证 DMG 内 App 的签名: $APP_IN_DMG"
+          codesign --verify --deep --strict --verbose=4 "$APP_IN_DMG" || {
+            echo "❌ DMG 内 App 签名验证失败"
+            hdiutil detach "$TEMP_MOUNT" || true
+            exit 1
+          }
+          
+          # 验证 App 的公证状态（检查是否通过 Apple 公证）
+          echo "验证 DMG 内 App 的公证状态"
+          spctl -a -vvv -t install "$APP_IN_DMG" || {
+            echo "❌ DMG 内 App 公证状态验证失败"
+            hdiutil detach "$TEMP_MOUNT" || true
+            exit 1
+          }
+          
+          # 卸载 DMG（清理临时挂载）
+          echo "卸载 DMG"
+          hdiutil detach "$TEMP_MOUNT" || {
+            echo "⚠️ 卸载 DMG 失败，可能残留挂载点"
             exit 1
           }
           
