@@ -83,7 +83,7 @@ jobs:
             "dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg" \
             "dist/dmg/"
 
-      - name: Notarize the DMG (规范：公证分发载体)
+      - name: Notarize the DMG (含详细日志查询)
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_ID_PWD: ${{ secrets.APPLE_ID_PWD }}
@@ -92,19 +92,43 @@ jobs:
           DMG_PATH="dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg"
           echo "Submitting DMG for notarization: $DMG_PATH"
           
-          # 对.dmg公证（无需--force，符合苹果默认格式）
-          xcrun notarytool submit "$DMG_PATH" \
+          # 提交公证并捕获完整输出（用于提取Submission ID）
+          SUBMISSION_OUTPUT=$(xcrun notarytool submit "$DMG_PATH" \
             --apple-id "$APPLE_ID" \
             --password "$APPLE_ID_PWD" \
             --team-id "$APPLE_TEAM_ID" \
             --wait \
-            --verbose
+            --verbose 2>&1)  # 捕获标准错误输出
           
-          # 装订凭证到.dmg（用户挂载时会自动识别内部.app的公证状态）
-          xcrun stapler staple "$DMG_PATH"
+          # 打印提交结果（方便快速查看）
+          echo "$SUBMISSION_OUTPUT"
           
-          # 验证公证结果
-          xcrun stapler validate "$DMG_PATH"
+          # 提取Submission ID（处理不同格式的输出）
+          SUBMISSION_ID=$(echo "$SUBMISSION_OUTPUT" | grep -oE 'id: [0-9a-f-]+' | cut -d' ' -f2 | head -n1)
+          echo "Extracted Submission ID: $SUBMISSION_ID"
+          
+          # 强制查询并打印详细日志（核心排查依据）
+          if [ -n "$SUBMISSION_ID" ]; then
+            echo "=== 公证详细日志 ==="
+            xcrun notarytool log "$SUBMISSION_ID" \
+              --apple-id "$APPLE_ID" \
+              --password "$APPLE_ID_PWD" \
+              --team-id "$APPLE_TEAM_ID"
+            echo "===================="
+          else
+            echo "❌ 无法提取Submission ID，无法查询日志"
+            exit 1
+          fi
+          
+          # 检查公证是否成功
+          if echo "$SUBMISSION_OUTPUT" | grep -q "status: Accepted"; then
+            echo "✅ Notarization succeeded. Stapling ticket..."
+            xcrun stapler staple "$DMG_PATH"
+            xcrun stapler validate "$DMG_PATH"
+          else
+            echo "❌ Notarization failed. Check log above for details."
+            exit 1
+          fi
 
       - name: Final Verification (确认最终分发包有效)
         run: |
