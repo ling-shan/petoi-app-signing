@@ -69,8 +69,8 @@ jobs:
             --timestamp "$APP_PATH"
           
           # 严格验证签名完整性（任何组件无效都会报错终止工作流）
-          # echo "Verifying complete signature chain..."
-          # codesign --verify --deep --strict --verbose=2 "$APP_ABS_PATH"
+          echo "Verifying complete signature chain..."
+          codesign --verify --deep --strict "$APP_ABS_PATH"
 
       - name: Verify All Nested Components (关键验证步骤)
         run: |
