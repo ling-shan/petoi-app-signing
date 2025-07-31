@@ -31,12 +31,14 @@ jobs:
         with:
           p12-file-base64: ${{ secrets.MAC_CERTIFICATE_DATA }}
           p12-password: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+          keychain: cert-keychain
 
       - name: Import Developer Install Certificates
         uses: apple-actions/import-codesign-certs@v2
         with:
           p12-file-base64: ${{ secrets.MAC_INSTALLER_CERTIFICATE_DATA }}
           p12-password: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+          keychain: install-cert-keychain
 
       - name: Code Sign the Application
         run: |
