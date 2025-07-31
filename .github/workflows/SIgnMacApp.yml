@@ -71,8 +71,7 @@ jobs:
       - name: Verify All Signing Includes Nested Components (关键验证步骤)
         run: |
           APP_PATH="mac/${{ github.event.inputs.app_name }}"
-          CONTENTS_PATH="$APP_PATH/Contents"
-          INFO_PLIST="$CONTENTS_PATH/Info.plist"
+          INFO_PLIST="$(pwd)/$APP_PATH/Contents/Info.plist"
 
           # 检查Info.plist是否存在
           if [ ! -f "$INFO_PLIST" ]; then
