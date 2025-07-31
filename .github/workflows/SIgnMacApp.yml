@@ -45,7 +45,6 @@ jobs:
         run: |
           set -ex
           APP_PATH="mac/${{ github.event.inputs.app_name }}"
-          APP_ABS_PATH="$(pwd)/mac/Petoi Desktop App.app"
           echo "Signing application at path: $APP_PATH"
           
           if [ ! -d "$APP_PATH" ]; then
@@ -55,27 +54,26 @@ jobs:
 
           # 关键：先单独签名嵌套的可执行文件（解决--deep可能遗漏的问题）
           # 1. 签名所有.dylib动态库
-          ls -la mac/
-
-
-
+          ls -la "$APP_PATH"
           find "$APP_PATH" -name "*.dylib" -type f -exec \
             codesign --force --timestamp -o runtime \
             --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" {} \;
           
           # 2. 签名MacOS目录下的python等可执行文件
+          ls -la "$APP_PATH"
           find "$APP_PATH/Contents/MacOS" -type f -perm +x -exec \
             codesign --force --timestamp -o runtime \
             --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" {} \;
           
           # 3. 最终签名整个.app（--deep确保覆盖所有剩余组件）
+          ls -la "$APP_PATH"
           codesign --force --deep --strict --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" \
             --options runtime \
             --timestamp "$APP_PATH"
           
           # 严格验证签名完整性（任何组件无效都会报错终止工作流）
           echo "Verifying complete signature chain..."
-          ls -la "$APP_ABS_PATH"
+          ls -la "$APP_PATH"
           codesign --verify --deep --strict --verbose=2 "$APP_ABS_PATH"
 
       - name: Verify All Nested Components (关键验证步骤)
