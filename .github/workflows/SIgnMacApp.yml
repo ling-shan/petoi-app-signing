@@ -94,7 +94,7 @@ jobs:
           done
 
           # 最终签名整个.app
-          codesign --force --deep --strict --options runtime \
+          codesign --force --strict --options runtime \
             --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" \
             --timestamp "$APP_PATH"
 
