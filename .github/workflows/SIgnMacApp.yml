@@ -42,12 +42,14 @@ jobs:
             echo "Error: Application not found at path $APP_PATH"
             exit 1
           fi
-          
-          codesign --force --deep --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" \
+
+          codesign --force --deep --strict --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" \
             --options runtime --entitlements mac/entitlements.plist \
             --timestamp "$APP_PATH"
           
-          codesign -dv --verbose=4 "$APP_PATH"
+          # 严格验证签名完整性（任何组件无效都会报错）
+          echo "Verifying complete signature chain..."
+          codesign -dvvv --deep --strict "$APP_PATH"  
 
       - name: Create DMG with Custom Background
         run: |
