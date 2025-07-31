@@ -37,7 +37,8 @@ jobs:
         run: |
           # 检查是否包含有效的 Developer ID Installer 证书
           security find-identity -p basic -v | grep "Developer ID"
-          security find-identity -p basic -v | grep "Trust"
+          security unlock-keychain -p "" ~/Library/Keychains/login.keychain-db
+          security set-key-partition-list -S apple-tool:,apple: -s -k "" ~/Library/Keychains/login.keychain-db
 
       - name: Code Sign the Application
         run: |
