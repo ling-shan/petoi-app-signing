@@ -48,7 +48,7 @@ jobs:
           fi
 
           codesign --force --deep --strict --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" \
-            --options runtime --entitlements mac/entitlements.plist \
+            --options runtime \
             --timestamp "$APP_PATH"
           
           # 严格验证签名完整性（任何组件无效都会报错）
