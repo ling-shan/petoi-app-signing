@@ -31,7 +31,12 @@ jobs:
         with:
           p12-file-base64: ${{ secrets.MAC_CERTIFICATE_DATA }}
           p12-password: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
-          keychain: cert-keychain
+
+      - name: Import Developer Install Certificates
+        uses: apple-actions/import-codesign-certs@v2
+        with:
+          p12-file-base64: ${{ secrets.MAC_INSTALLER_CERTIFICATE_DATA }}
+          p12-password: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
 
       - name: Code Sign the Application
         run: |
@@ -71,16 +76,14 @@ jobs:
             "dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg" \
             "dist/dmg/"
 
-      # - name: Sign the DMG
-      #   run: |
-      #     DMG_PATH="dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg"
+      - name: Sign the DMG
+        run: |
+          DMG_PATH="dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg"
           
-      #     # Developer ID Installer
-      #     #   
-      #     codesign --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" \
-      #       --timestamp --options runtime "$DMG_PATH"
+          codesign --sign "Developer ID Installer: Petoi LLC (H98JHTT3JH)" \
+            --timestamp --options runtime "$DMG_PATH"
           
-      #     codesign -dv --verbose=4 "$DMG_PATH"
+          codesign -dv --verbose=4 "$DMG_PATH"
 
       - name: Notarize the DMG
         env:
