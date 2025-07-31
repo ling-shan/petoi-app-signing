@@ -195,66 +195,76 @@ jobs:
 
       - name: Final Verification
         run: |
+          set -e  # 任何命令失败立即退出
           DMG_PATH="dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg"
           APP_NAME="${{ github.event.inputs.app_name }}"
-          TEMP_MOUNT="/tmp/dmg_mount"  # 临时挂载点
-
+          TEMP_MOUNT="/tmp/dmg_mount_$(date +%s)"  # 用时间戳避免挂载点冲突
+          mkdir -p "$TEMP_MOUNT"  # 确保挂载点存在
+          
           echo "验证 DMG 完整性和公证状态: $DMG_PATH"
           
-          # 1. 检查 DMG 镜像是否损坏（底层数据完整性）
+          # 1. 检查 DMG 底层完整性
           hdiutil verify "$DMG_PATH" || {
             echo "❌ DMG 镜像损坏"
             exit 1
           }
           
-          # 2. 验证 DMG 的公证凭证是否有效（核心验证）
+          # 2. 验证 DMG 公证凭证
           xcrun stapler validate "$DMG_PATH" || {
-            echo "❌ DMG 公证凭证无效或未绑定"
+            echo "❌ DMG 公证凭证无效"
             exit 1
           }
-
-          # 创建临时挂载点
-          mkdir -p "$TEMP_MOUNT"
           
-          # 挂载 DMG 到临时目录（只读模式，避免修改）
+          # 3. 挂载 DMG 并捕获实际挂载点（处理可能的多卷/自动路径）
           echo "挂载 DMG 到临时目录: $TEMP_MOUNT"
-          hdiutil attach "$DMG_PATH" -mountpoint "$TEMP_MOUNT" -readonly -nobrowse || {
+          # 用 -mountpoint 强制指定挂载点，确保路径可控
+          hdiutil attach "$DMG_PATH" -mountpoint "$TEMP_MOUNT" -readonly -nobrowse -quiet || {
             echo "❌ 挂载 DMG 失败"
             exit 1
           }
           
-          # 检查 DMG 内的 App 是否存在
+          # 调试：列出挂载点内容，确认 App 实际路径（关键！）
+          echo "=== 挂载点内容列表 ==="
+          ls -la "$TEMP_MOUNT"
+          echo "======================"
+          
+          # 4. 定位 DMG 内的 App（处理空格路径，必须用双引号包裹）
           APP_IN_DMG="$TEMP_MOUNT/$APP_NAME"
+          # 强制转义路径中的特殊字符（处理空格、括号等）
+          APP_IN_DMG_ESCAPED=$(printf "%q" "$APP_IN_DMG")
+          
+          # 检查 App 是否存在（带详细错误信息）
           if [ ! -d "$APP_IN_DMG" ]; then
-            echo "❌ DMG 内未找到 App: $APP_IN_DMG"
-            hdiutil detach "$TEMP_MOUNT" || true  # 失败也尝试卸载
+            echo "❌ DMG 内未找到 App！预期路径：$APP_IN_DMG"
+            echo "请检查 DMG 内实际文件结构（见上方挂载点内容列表）"
+            hdiutil detach "$TEMP_MOUNT" -quiet || true
             exit 1
           fi
           
-          # 验证 App 的签名完整性（深度检查所有嵌套组件）
+          # 5. 验证 App 签名（用转义后的路径，确保正确识别）
           echo "验证 DMG 内 App 的签名: $APP_IN_DMG"
           codesign --verify --deep --strict --verbose=4 "$APP_IN_DMG" || {
-            echo "❌ DMG 内 App 签名验证失败"
-            hdiutil detach "$TEMP_MOUNT" || true
+            echo "❌ App 签名验证失败: $APP_IN_DMG"
+            hdiutil detach "$TEMP_MOUNT" -quiet || true
             exit 1
           }
           
-          # 验证 App 的公证状态（检查是否通过 Apple 公证）
+          # 6. 验证 App 公证状态
           echo "验证 DMG 内 App 的公证状态"
           spctl -a -vvv -t install "$APP_IN_DMG" || {
-            echo "❌ DMG 内 App 公证状态验证失败"
-            hdiutil detach "$TEMP_MOUNT" || true
+            echo "❌ App 公证状态验证失败: $APP_IN_DMG"
+            hdiutil detach "$TEMP_MOUNT" -quiet || true
             exit 1
           }
           
-          # 卸载 DMG（清理临时挂载）
-          echo "卸载 DMG"
-          hdiutil detach "$TEMP_MOUNT" || {
-            echo "⚠️ 卸载 DMG 失败，可能残留挂载点"
+          # 7. 卸载 DMG
+          hdiutil detach "$TEMP_MOUNT" -quiet || {
+            echo "⚠️ 卸载 DMG 失败，尝试强制卸载"
+            hdiutil detach "$TEMP_MOUNT" -force -quiet || true
             exit 1
           }
           
-          echo "✅ DMG 验证通过（完整性和公证状态均有效）"
+          echo "✅ 所有验证通过（DMG 完整性 + 内部 App 签名 + 公证状态）"
 
       - name: Upload DMG
         uses: actions/upload-artifact@v4
