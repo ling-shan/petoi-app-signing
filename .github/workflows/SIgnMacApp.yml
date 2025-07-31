@@ -67,14 +67,14 @@ jobs:
           codesign --force --deep --strict --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" \
             --options runtime \
             --timestamp "$APP_PATH"
-          
-          # 严格验证签名完整性（任何组件无效都会报错终止工作流）
-          echo "Verifying complete signature chain..."
-          codesign --verify --deep --strict "$APP_ABS_PATH"
 
-      - name: Verify All Nested Components (关键验证步骤)
+      - name: Verify All Signing Includes Nested Components (关键验证步骤)
         run: |
           APP_PATH="mac/${{ github.event.inputs.app_name }}"
+           # 严格验证签名完整性（任何组件无效都会报错终止工作流）
+          echo "Verifying complete signature chain..."
+          codesign --verify --deep --strict "$APP_PATH"
+
           echo "验证所有嵌套组件的签名状态..."
           
           # 查找所有可执行文件和.dylib，逐个验证（确保无遗漏）
