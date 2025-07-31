@@ -34,7 +34,7 @@ jobs:
       
       - name: Verify Installer Certificate
         run: |
-          # 检查是否包含有效的 Developer ID Application 证书（重点确认）
+          # 检查是否包含有效的 Developer ID Application 证书
           security find-identity -v | grep "Developer ID Application: Petoi LLC (H98JHTT3JH)"
           if [ $? -ne 0 ]; then
             echo "Error: 未找到有效的签名证书"
@@ -52,14 +52,13 @@ jobs:
             exit 1
           fi
 
-          # 关键：先单独签名嵌套的可执行文件（解决--deep可能遗漏的问题）
           # 1. 签名所有.dylib动态库
           find "$APP_PATH" -name "*.dylib" -type f -exec \
             codesign --force --timestamp -o runtime \
             --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" {} \;
           
-          # 2. 签名MacOS目录下的python等可执行文件
-          find "$APP_PATH/Contents/MacOS" -type f -perm +x -exec \
+          # 2. 签名所有可执行文件
+          find "$APP_PATH" -type f -perm +x -exec \
             codesign --force --timestamp -o runtime \
             --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" {} \;
           
@@ -68,34 +67,55 @@ jobs:
             --options runtime \
             --timestamp "$APP_PATH"
 
-      - name: Verify All Signing Includes Nested Components (关键验证步骤)
+      - name: Verify All Signing Includes Nested Components
         run: |
           APP_PATH="mac/${{ github.event.inputs.app_name }}"
   
-           # 严格验证签名完整性（任何组件无效都会报错终止工作流）
           echo "Verifying complete signature chain..."
 
-          # 检查路径是否存在
           if [ -d "$APP_PATH" ]; then
             echo "路径存在"
           else
             echo "路径不存在！请检查路径是否正确"
+            exit 1
           fi
 
           codesign --verify --deep --verbose=4 "$APP_PATH"
 
           echo "验证所有嵌套组件的签名状态..."
           
-          # 查找所有可执行文件和.dylib，逐个验证（确保无遗漏）
           find "$APP_PATH" \( -name "*.dylib" -o -perm +x \) -type f | while read -r file; do
             echo "检查文件: $file"
             codesign --verify --verbose=1 "$file"
             if [ $? -ne 0 ]; then
               echo "❌ 签名验证失败: $file"
-              exit 1  # 一旦发现无效签名，立即终止工作流
+              exit 1
             fi
           done
           echo "✅ 所有嵌套组件签名验证通过"
+
+      - name: Notarize the Application (关键修正：先公证.app再打包)
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PWD: ${{ secrets.APPLE_ID_PWD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          APP_PATH="mac/${{ github.event.inputs.app_name }}"
+          echo "Submitting app for notarization: $APP_PATH"
+          
+          # 提交.app进行公证并等待完成
+          xcrun notarytool submit "$APP_PATH" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_ID_PWD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait \
+            --verbose
+          
+          # 装订公证凭证到.app（确保离线可用）
+          xcrun stapler staple "$APP_PATH"
+          
+          # 验证公证结果
+          xcrun stapler validate "$APP_PATH"
 
       - name: Create DMG with Custom Background
         run: |
@@ -115,32 +135,18 @@ jobs:
             "dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg" \
             "dist/dmg/"
 
-      # 注意：DMG本身无需签名（苹果公证只验证内部内容），移除多余的DMG签名步骤
-      # - name: Sign the DMG
-      #   run: ...
-
-      - name: Notarize the DMG
-        env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_ID_PWD: ${{ secrets.APPLE_ID_PWD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      - name: Verify DMG Contents
         run: |
+          # 挂载DMG并验证内部.app的公证状态
           DMG_PATH="dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg"
-          echo "Submitting DMG for notarization: $DMG_PATH"
+          MOUNT_POINT=$(hdiutil mount "$DMG_PATH" | grep -o '/Volumes/[^ ]*' | head -n 1)
+          echo "Mounted DMG at: $MOUNT_POINT"
           
-          # 提交公证并等待结果（--wait确保工作流等待公证完成）
-          xcrun notarytool submit "$DMG_PATH" \
-            --apple-id "$APPLE_ID" \
-            --password "$APPLE_ID_PWD" \
-            --team-id "$APPLE_TEAM_ID" \
-            --wait \
-            --verbose
+          APP_IN_DMG="$MOUNT_POINT/${{ github.event.inputs.app_name }}"
+          spctl --assess --type execute --verbose "$APP_IN_DMG"
+          xcrun stapler validate "$APP_IN_DMG"
           
-          # 附加公证票据（离线验证用）
-          xcrun stapler staple "$DMG_PATH"
-          
-          # 验证公证结果
-          xcrun stapler validate "$DMG_PATH"
+          hdiutil unmount "$MOUNT_POINT"
 
       - name: Upload Signed DMG
         uses: actions/upload-artifact@v4
