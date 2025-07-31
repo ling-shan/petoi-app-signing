@@ -44,6 +44,7 @@ jobs:
       - name: Code Sign the Application (含嵌套组件深度签名)
         run: |
           APP_PATH="mac/${{ github.event.inputs.app_name }}"
+          APP_ABS_PATH="$(pwd)/mac/Petoi Desktop App.app"
           echo "Signing application at path: $APP_PATH"
           
           if [ ! -d "$APP_PATH" ]; then
@@ -72,7 +73,7 @@ jobs:
           # 严格验证签名完整性（任何组件无效都会报错终止工作流）
           echo "Verifying complete signature chain..."
           ls -la mac/
-          codesign --verify --deep --strict --verbose=2 "$APP_PATH"  
+          codesign --verify --deep --strict --verbose=2 "$APP_ABS_PATH"
 
       - name: Verify All Nested Components (关键验证步骤)
         run: |
