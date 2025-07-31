@@ -1,3 +1,4 @@
 /mac/Petoi Desktop App.app
 dist/
 mac/__MACOSX/
+.DS_Store

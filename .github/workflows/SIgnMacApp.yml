@@ -69,16 +69,16 @@ jobs:
             "dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg" \
             "dist/dmg/"
 
-      - name: Sign the DMG
-        run: |
-          DMG_PATH="dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg"
+      # - name: Sign the DMG
+      #   run: |
+      #     DMG_PATH="dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg"
           
-          # Developer ID Installer
-          # Developer ID Application
-          codesign --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" \
-            --timestamp --options runtime "$DMG_PATH"
+      #     # Developer ID Installer
+      #     #   
+      #     codesign --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" \
+      #       --timestamp --options runtime "$DMG_PATH"
           
-          codesign -dv --verbose=4 "$DMG_PATH"
+      #     codesign -dv --verbose=4 "$DMG_PATH"
 
       - name: Notarize the DMG
         env:
