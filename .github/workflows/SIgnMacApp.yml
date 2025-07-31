@@ -43,7 +43,7 @@ jobs:
       
       - name: Code Sign the Application (含嵌套组件深度签名)
         run: |
-          + ex
+          set -ex
           APP_PATH="mac/${{ github.event.inputs.app_name }}"
           APP_ABS_PATH="$(pwd)/mac/Petoi Desktop App.app"
           echo "Signing application at path: $APP_PATH"
