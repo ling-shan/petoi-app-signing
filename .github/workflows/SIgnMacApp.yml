@@ -105,6 +105,7 @@ jobs:
           
           # 提交.app进行公证并等待完成
           xcrun notarytool submit "$APP_PATH" \
+            --force \
             --apple-id "$APPLE_ID" \
             --password "$APPLE_ID_PWD" \
             --team-id "$APPLE_TEAM_ID" \
