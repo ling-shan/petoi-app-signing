@@ -23,6 +23,9 @@ jobs:
       - name: Unzip Application
         run: unzip mac/Petoi\ Desktop\ App.zip -d mac/
 
+      - name: Install create-dmg
+        run: brew install create-dmg
+
       - name: Import Developer Certificates
         uses: apple-actions/import-codesign-certs@v2
         with:
@@ -47,79 +50,24 @@ jobs:
           codesign -dv --verbose=4 "$APP_PATH"
 
       - name: Create DMG with Custom Background
-        # 创建临时目录用于构建DMG内容
         run: |
-          echo "开始创建dist/dmg目录"
+          # 创建临时目录用于构建DMG内容
           mkdir -p dist/dmg
-          echo "dist/dmg目录创建完成,检查目录是否存在: $(test -d dist/dmg && echo '存在' || echo '不存在')"
           cp -R "mac/${{ github.event.inputs.app_name }}" dist/dmg/
-          echo "应用程序复制完成,检查dist/dmg目录下是否存在应用程序: $(ls -l dist/dmg/${{ github.event.inputs.app_name }} 2>/dev/null | grep -q '^d' && echo '存在' || echo '不存在')"
           ln -s /Applications dist/dmg/Applications
-          echo "Applications链接创建完成,检查链接是否存在: $(test -L dist/dmg/Applications && echo '存在' || echo '不存在')"
-          # 准备背景图片
-          echo "开始创建dist/dmg/.background目录"
-          mkdir -p dist/dmg/.background
-          echo "dist/dmg/.background目录创建完成,检查目录是否存在: $(test -d dist/dmg/.background && echo '存在' || echo '不存在')"
-          cp mac/Make_for_dmg.jpg dist/dmg/.background/background.jpg
-          echo "背景图片复制完成,检查背景图片是否存在: $(test -f dist/dmg/.background/background.jpg && echo '存在' || echo '不存在')"
-                  
-          # 使用AppleScript配置DMG窗口
-          osascript <<EOD
-          tell application "Finder"
-            tell disk "Petoi Desktop App"
-              open
-              set current view of container window to icon view
-              set toolbar visible of container window to false
-              set statusbar visible of container window to false
-              set the bounds of container window to {400, 200, 940, 580}
-              set viewOptions to the icon view options of container window
-              set arrangement of viewOptions to not arranged
-              set icon size of viewOptions to 100
-              set background picture of viewOptions to file ".background:background.jpg"
-              
-              # 设置应用和Applications链接的位置
-              set position of item "${{ github.event.inputs.app_name }}" of container window to {180, 200}
-              set position of item "Applications" of container window to {420, 200}
-              
-              close
-              open
-              update without registering applications
-              delay 2
-            end tell
-          end tell
-          EOD
           
-      # 创建最终DMG文件
-      - name: Create Final DMG
-        run: hdiutil create -volname "Petoi Desktop App" -srcfolder "dist/dmg" -ov -format UDZO -imagekey zlib-level=9 "dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg"
-        shell: /bin/bash -e {0}
-      - name: Set DMG Window Configuration
-        run: |
-          DMG_PATH="dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg"
-          osascript <<EOD
-          tell application "Finder"
-            tell disk image "$DMG_PATH"
-              open
-              set current view of container window to icon view
-              set toolbar visible of container window to false
-              set statusbar visible of container window to false
-              set the bounds of container window to {400, 200, 940, 580}
-              set viewOptions to the icon view options of container window
-              set arrangement of viewOptions to not arranged
-              set icon size of viewOptions to 100
-              set background picture of viewOptions to file ".background:background.jpg"
-              
-              # 设置应用和Applications链接的位置
-              set position of item "${{ github.event.inputs.app_name }}" of container window to {180, 200}
-              set position of item "Applications" of container window to {420, 200}
-              
-              close
-              open
-              update without registering applications
-              delay 2
-            end tell
-          end tell
-          EOD
+          # 使用create-dmg工具创建DMG
+          create-dmg \
+            --volname "Petoi Desktop App" \
+            --background "mac/Make_for_dmg.jpg" \
+            --window-pos 400 200 \
+            --window-size 940 580 \
+            --icon-size 100 \
+            --icon "${{ github.event.inputs.app_name }}" 180 200 \
+            --app-drop-link 420 200 \
+            --no-internet-enable \
+            "dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg" \
+            "dist/dmg/"
 
       - name: Sign the DMG
         run: |
@@ -153,4 +101,4 @@ jobs:
         with:
           name: Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg
           path: dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg
-          retention-days: 30
+          retention-days: 30    
