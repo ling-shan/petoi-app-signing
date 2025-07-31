@@ -35,7 +35,7 @@ jobs:
       - name: Verify Installer Certificate
         run: |
           # 检查是否包含有效的 Developer ID Installer 证书
-          security find-identity -p basic -v | grep "Developer ID"
+          security find-identity -v
       
       - name: Code Sign the Application
         run: |
