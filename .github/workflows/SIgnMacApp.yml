@@ -56,6 +56,9 @@ jobs:
           # 关键：先单独签名嵌套的可执行文件（解决--deep可能遗漏的问题）
           # 1. 签名所有.dylib动态库
           ls -la mac/
+
+
+
           find "$APP_PATH" -name "*.dylib" -type f -exec \
             codesign --force --timestamp -o runtime \
             --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" {} \;
@@ -66,15 +69,13 @@ jobs:
             --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" {} \;
           
           # 3. 最终签名整个.app（--deep确保覆盖所有剩余组件）
-          ls -la mac/
           codesign --force --deep --strict --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" \
             --options runtime \
             --timestamp "$APP_PATH"
           
           # 严格验证签名完整性（任何组件无效都会报错终止工作流）
           echo "Verifying complete signature chain..."
-          ls -la mac/
-          pwd
+          ls -la "$APP_ABS_PATH"
           codesign --verify --deep --strict --verbose=2 "$APP_ABS_PATH"
 
       - name: Verify All Nested Components (关键验证步骤)
