@@ -60,26 +60,26 @@ jobs:
             exit 1
           fi
 
-          # 处理python37.zip内的.dylib文件
-          if [ -f "$PYTHON_ZIP_ABSOLUTE" ]; then
-            echo "处理压缩包: $PYTHON_ZIP_ABSOLUTE"
-            TEMP_UNZIP=$(mktemp -d)
-            unzip -q "$PYTHON_ZIP_ABSOLUTE" -d "$TEMP_UNZIP"
+          # # 处理python37.zip内的.dylib文件
+          # if [ -f "$PYTHON_ZIP_ABSOLUTE" ]; then
+          #   echo "处理压缩包: $PYTHON_ZIP_ABSOLUTE"
+          #   TEMP_UNZIP=$(mktemp -d)
+          #   unzip -q "$PYTHON_ZIP_ABSOLUTE" -d "$TEMP_UNZIP"
             
-            # 签名解压后的所有.dylib文件
-            find "$TEMP_UNZIP" -name "*.dylib" -type f -exec \
-              codesign --force --timestamp --options runtime \
-              --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" {} \;
+          #   # 签名解压后的所有.dylib文件
+          #   find "$TEMP_UNZIP" -name "*.dylib" -type f -exec \
+          #     codesign --force --timestamp --options runtime \
+          #     --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" {} \;
             
-            # 关键修复：删除原文件并使用绝对路径重新压缩
-            rm -f "$PYTHON_ZIP_ABSOLUTE"  # 确保原文件被删除，避免占用
-            cd "$TEMP_UNZIP" && zip -q -r "$PYTHON_ZIP_ABSOLUTE" ./*  # 使用绝对路径输出
-            cd -  # 返回原工作目录
-            rm -rf "$TEMP_UNZIP"  # 清理临时文件
-          else
-            echo "Error: 未找到python37.zip: $PYTHON_ZIP_ABSOLUTE"
-            exit 1
-          fi
+          #   # 关键修复：删除原文件并使用绝对路径重新压缩
+          #   rm -f "$PYTHON_ZIP_ABSOLUTE"  # 确保原文件被删除，避免占用
+          #   cd "$TEMP_UNZIP" && zip -q -r "$PYTHON_ZIP_ABSOLUTE" ./*  # 使用绝对路径输出
+          #   cd -  # 返回原工作目录
+          #   rm -rf "$TEMP_UNZIP"  # 清理临时文件
+          # else
+          #   echo "Error: 未找到python37.zip: $PYTHON_ZIP_ABSOLUTE"
+          #   exit 1
+          # fi
 
           # 签名esptool（确保硬化运行时）
           if [ -f "$ESPTOOL_PATH" ]; then
