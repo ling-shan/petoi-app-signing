@@ -89,12 +89,14 @@ jobs:
           DMG_PATH="dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg"
           nc -vz api.apple-cloudkit.com 443
           curl -I https://developer.apple.com
+          echo "Submitting DMG for notarization: $DMG_PATH"
+          echo "---------------------------------"
           # 提交DMG进行公证
           xcrun notarytool submit "$DMG_PATH" \
             --apple-id "$APPLE_ID" \
             --password "$APPLE_ID_PWD" \
             --team-id "$APPLE_TEAM_ID" \
-            --wait
+            --wait \
             --verbose
           
           # 附加公证结果
