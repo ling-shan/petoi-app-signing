@@ -40,32 +40,57 @@ jobs:
             exit 1
           fi
       
-      - name: Code Sign the Application (核心：先签名.app)
+      - name: Code Sign the Application (覆盖所有嵌套二进制文件)
         run: |
           set -ex
           APP_PATH="mac/${{ github.event.inputs.app_name }}"
+          echo "Signing application at path: $APP_PATH"
           
           if [ ! -d "$APP_PATH" ]; then
-            echo "Error: Application not found at $APP_PATH"
+            echo "Error: Application not found at path $APP_PATH"
             exit 1
           fi
 
-          # 1. 签名所有动态库和可执行文件（确保嵌套组件完整）
-          find "$APP_PATH" \( -name "*.dylib" -o -perm +x \) -type f -exec \
+          # 关键优化：递归查找所有需要签名的文件
+          # 包含：.dylib 动态库、.so 扩展模块、所有可执行文件
+          find "$APP_PATH" -type f \( \
+            -name "*.dylib" -o \
+            -name "*.so" -o \
+            -perm +x \
+          \) -print0 | while IFS= read -r -d '' file; do
+            echo "Signing file: $file"
             codesign --force --timestamp -o runtime \
-            --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" {} \;
+              --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" \
+              "$file"
+          done
           
-          # 2. 整体签名.app（确认完整签名链）
+          # 最终对整个.app进行深度签名（确保签名链完整）
           codesign --force --deep --strict --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" \
             --options runtime \
             --timestamp "$APP_PATH"
 
-      - name: Verify .app Signature (确保签名有效)
+      - name: Verify .app Signature (仅验证签名完整性)
         run: |
           APP_PATH="mac/${{ github.event.inputs.app_name }}"
           codesign --verify --deep --verbose=4 "$APP_PATH"
 
-      - name: Create DMG (打包分发载体)
+      - name: Verify Critical Paths (确保嵌套文件已签名)
+        run: |
+          APP_PATH="mac/${{ github.event.inputs.app_name }}"
+          echo "Verifying critical paths for proper signing..."
+          
+          # 验证Python依赖目录下的文件
+          find "$APP_PATH/Contents/Resources" \( -name "*.dylib" -o -name "*.so" -o -perm +x \) -type f | while read -r file; do
+            echo "Checking signature for: $file"
+            codesign --verify --verbose=1 "$file"
+            if [ $? -ne 0 ]; then
+              echo "❌ 签名验证失败: $file"
+              exit 1
+            fi
+          done
+          echo "✅ 所有关键路径文件签名验证通过"
+
+      - name: Create DMG
         run: |
           mkdir -p dist/dmg
           cp -R "mac/${{ github.event.inputs.app_name }}" dist/dmg/
@@ -92,22 +117,22 @@ jobs:
           DMG_PATH="dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg"
           echo "Submitting DMG for notarization: $DMG_PATH"
           
-          # 提交公证并捕获完整输出（用于提取Submission ID）
+          # 提交公证并捕获完整输出
           SUBMISSION_OUTPUT=$(xcrun notarytool submit "$DMG_PATH" \
             --apple-id "$APPLE_ID" \
             --password "$APPLE_ID_PWD" \
             --team-id "$APPLE_TEAM_ID" \
             --wait \
-            --verbose 2>&1)  # 捕获标准错误输出
+            --verbose 2>&1)
           
-          # 打印提交结果（方便快速查看）
+          # 打印提交结果
           echo "$SUBMISSION_OUTPUT"
           
-          # 提取Submission ID（处理不同格式的输出）
+          # 提取Submission ID
           SUBMISSION_ID=$(echo "$SUBMISSION_OUTPUT" | grep -oE 'id: [0-9a-f-]+' | cut -d' ' -f2 | head -n1)
           echo "Extracted Submission ID: $SUBMISSION_ID"
           
-          # 强制查询并打印详细日志（核心排查依据）
+          # 强制查询并打印详细日志
           if [ -n "$SUBMISSION_ID" ]; then
             echo "=== 公证详细日志 ==="
             xcrun notarytool log "$SUBMISSION_ID" \
@@ -130,14 +155,14 @@ jobs:
             exit 1
           fi
 
-      - name: Final Verification (确认最终分发包有效)
+      - name: Final Verification
         run: |
           DMG_PATH="dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg"
           MOUNT_POINT=$(hdiutil mount "$DMG_PATH" | grep -o '/Volumes/[^ ]*' | head -n 1)
           
-          # 验证DMG中的.app是否通过Gatekeeper
           APP_IN_DMG="$MOUNT_POINT/${{ github.event.inputs.app_name }}"
-          spctl --assess --type execute --verbose "$APP_IN_DMG"  # 应显示"accepted"
+          echo "Verifying final app in DMG: $APP_IN_DMG"
+          spctl --assess --type execute --verbose "$APP_IN_DMG"
           
           hdiutil unmount "$MOUNT_POINT"
 
@@ -145,5 +170,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg
-          path: ${{ env.DMG_PATH }}
+          path: dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg
           retention-days: 30
