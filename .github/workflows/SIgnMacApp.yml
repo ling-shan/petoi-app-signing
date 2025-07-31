@@ -49,7 +49,7 @@ jobs:
           PYTHON_ZIP_ABSOLUTE="$(cd "$(dirname "$RESOURCES_PATH/lib/python37.zip")" && pwd)/$(basename "$RESOURCES_PATH/lib/python37.zip")"
           ESPTOOL_PATH="$RESOURCES_PATH/resources/esptoolMac/esptool"
 
-          优先签名Contents/MacOS下的python可执行文件（解决核心报错）
+          # 优先签名Contents/MacOS下的python可执行文件（解决核心报错）
           if [ -f "$PYTHON_EXE_PATH" ]; then
             echo "签名Python可执行文件: $PYTHON_EXE_PATH"
             codesign --force --timestamp --options runtime \
@@ -59,7 +59,7 @@ jobs:
             echo "Error: 未找到Python可执行文件: $PYTHON_EXE_PATH"
             exit 1
           fi
-          
+
           # 处理python37.zip内的.dylib文件
           if [ -f "$PYTHON_ZIP_ABSOLUTE" ]; then
             echo "处理压缩包: $PYTHON_ZIP_ABSOLUTE"
