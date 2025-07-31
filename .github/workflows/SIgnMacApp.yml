@@ -243,7 +243,7 @@ jobs:
           
           # 5. 验证 App 签名（用转义后的路径，确保正确识别）
           echo "验证 DMG 内 App 的签名: $APP_IN_DMG"
-          codesign --verify --deep --strict --verbose=4 "$APP_IN_DMG" || {
+          codesign --verify  --strict --verbose=4 "$APP_IN_DMG" || {
             echo "❌ App 签名验证失败: $APP_IN_DMG"
             hdiutil detach "$TEMP_MOUNT" -quiet || true
             exit 1
