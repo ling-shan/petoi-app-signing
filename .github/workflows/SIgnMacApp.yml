@@ -92,7 +92,7 @@ jobs:
            # 严格验证签名完整性（任何组件无效都会报错终止工作流）
           echo "Verifying complete signature chain..."
           ls -l "$APP_PATH"
-          codesign --verify --deep --strict "$APP_PATH"
+          codesign --verify --deep --strict "$(pwd)/$APP_PATH"
 
           echo "验证所有嵌套组件的签名状态..."
           
