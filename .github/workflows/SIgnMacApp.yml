@@ -75,7 +75,7 @@ jobs:
           
           # Developer ID Installer
           # Developer ID Application
-          codesign --sign "Developer ID Installer: Petoi LLC (H98JHTT3JH)" \
+          codesign --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" \
             --timestamp --options runtime "$DMG_PATH"
           
           codesign -dv --verbose=4 "$DMG_PATH"
