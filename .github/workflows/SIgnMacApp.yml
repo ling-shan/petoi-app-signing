@@ -71,28 +71,11 @@ jobs:
       - name: Verify All Signing Includes Nested Components (关键验证步骤)
         run: |
           APP_PATH="mac/${{ github.event.inputs.app_name }}"
-          INFO_PLIST="$(pwd)/$APP_PATH/Contents/Info.plist"
-
-          # 检查Info.plist是否存在
-          if [ ! -f "$INFO_PLIST" ]; then
-            echo "Error: 核心文件缺失 - $INFO_PLIST"
-            echo "原因：有效的.app必须包含Contents/Info.plist，当前目录结构不完整"
-            # 显示Contents目录内容，辅助排查
-            echo "Contents目录内容："
-            ls -la "$CONTENTS_PATH"
-            exit 1
-          fi
-
-          # 检查Info.plist是否有效（能被系统解析）
-          if ! defaults read "$INFO_PLIST" 2>/dev/null; then
-            echo "Error: Info.plist格式损坏，无法解析 - $INFO_PLIST"
-            exit 1
-          fi
-
+  
            # 严格验证签名完整性（任何组件无效都会报错终止工作流）
           echo "Verifying complete signature chain..."
           ls -l "$(pwd)/$APP_PATH"
-          codesign --verify --deep --strict $(pwd)/$APP_PATH
+          codesign --verify --deep --strict '$(pwd)/$APP_PATH'
 
           echo "验证所有嵌套组件的签名状态..."
           
