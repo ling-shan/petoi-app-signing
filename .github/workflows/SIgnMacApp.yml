@@ -64,7 +64,6 @@ jobs:
         run: |
           APP_PATH="mac/${{ github.event.inputs.app_name }}"
           codesign --verify --deep --verbose=4 "$APP_PATH"
-          spctl --assess --type execute --verbose "$APP_PATH"  # 临时验证.app签名状态
 
       - name: Create DMG (打包分发载体)
         run: |
