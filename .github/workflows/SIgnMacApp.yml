@@ -58,7 +58,7 @@ jobs:
             
             find "$TEMP_UNZIP" -name "*.dylib" -type f -exec \
               codesign --force --timestamp --options runtime \
-              --sign "Developer ID Application: Petoi LLC (***)" {} \;
+              --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" {} \;
             
             rm -f "$PYTHON_ZIP_ABSOLUTE"
             cd "$TEMP_UNZIP" && zip -q -r "$PYTHON_ZIP_ABSOLUTE" ./*
@@ -73,7 +73,7 @@ jobs:
           if [ -f "$PYTHON_EXE_PATH" ]; then
             echo "签名Python可执行文件: $PYTHON_EXE_PATH"
             codesign --force --timestamp --options runtime \
-              --sign "Developer ID Application: Petoi LLC (***)" \
+              --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" \
               "$PYTHON_EXE_PATH"
             # 关键：验证python签名是否成功
             codesign --verify --verbose=2 "$PYTHON_EXE_PATH" || {
@@ -89,7 +89,7 @@ jobs:
           if [ -f "$ESPTOOL_PATH" ]; then
             echo "签名esptool: $ESPTOOL_PATH"
             codesign --force --timestamp --options runtime \
-              --sign "Developer ID Application: Petoi LLC (***)" \
+              --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" \
               "$ESPTOOL_PATH"
             # 验证esptool签名
             codesign --verify --verbose=2 "$ESPTOOL_PATH" || {
@@ -109,7 +109,7 @@ jobs:
             if [[ "$file" != "$PYTHON_ZIP_ABSOLUTE" && "$file" != "$MAIN_EXE_PATH" && "$file" != "$PYTHON_EXE_PATH" && "$file" != "$ESPTOOL_PATH" ]]; then
               echo "签名文件: $file"
               codesign --force --timestamp --options runtime \
-                --sign "Developer ID Application: Petoi LLC (***)" \
+                --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" \
                 "$file"
               # 验证每个文件的签名
               codesign --verify --verbose=1 "$file" || {
@@ -123,7 +123,7 @@ jobs:
           if [ -f "$MAIN_EXE_PATH" ]; then
             echo "签名主执行文件: $MAIN_EXE_PATH"
             codesign --force --timestamp --options runtime \
-              --sign "Developer ID Application: Petoi LLC (***)" \
+              --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" \
               "$MAIN_EXE_PATH"
             # 验证主执行文件签名
             codesign --verify --verbose=2 "$MAIN_EXE_PATH" || {
@@ -137,7 +137,7 @@ jobs:
           
           # 6. 最终签名整个.app包（确认层级完整性）
           codesign --force --deep --strict --options runtime \
-            --sign "Developer ID Application: Petoi LLC (***)" \
+            --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" \
             --timestamp "$APP_PATH"
           
           # 最终验证整个.app
