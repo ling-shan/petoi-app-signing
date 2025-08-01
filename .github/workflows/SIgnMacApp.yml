@@ -140,8 +140,8 @@ jobs:
           codesign --force --deep --strict --options runtime \
             --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" \
             --timestamp "$APP_PATH"
-            
-          codesign --verify --deep --strict --verbose=4 "$$APP_PATH" || {
+
+          codesign --verify --deep --strict --verbose=4 "$APP_PATH" || {
             echo "❌ .app整体签名验证失败"
             exit 1
           }
