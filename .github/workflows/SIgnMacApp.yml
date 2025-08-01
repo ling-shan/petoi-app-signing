@@ -42,43 +42,15 @@ jobs:
       - name: Code Sign .app (修复主执行文件签名)
         run: |
           set -ex
-          APP_PATH="mac/${{ github.event.inputs.app_name }}"
-          # 重点：明确主执行文件路径（根据错误日志定位）
+          APP_PATH="mac/Petoi Desktop App.app"
+          # 明确主执行文件和子组件路径
           MAIN_EXE_PATH="$APP_PATH/Contents/MacOS/Petoi Desktop App"
           RESOURCES_PATH="$APP_PATH/Contents/Resources"
-          PYTHON_EXE_PATH="$APP_PATH/Contents/MacOS/python"
+          PYTHON_EXE_PATH="$APP_PATH/Contents/MacOS/python"  # 子组件：python
           PYTHON_ZIP_ABSOLUTE="$(cd "$(dirname "$RESOURCES_PATH/lib/python37.zip")" && pwd)/$(basename "$RESOURCES_PATH/lib/python37.zip")"
-          ESPTOOL_PATH="$RESOURCES_PATH/resources/esptoolMac/esptool"
-
-          # 1. 优先签名主执行文件（解决核心错误）
-          if [ -f "$MAIN_EXE_PATH" ]; then
-            echo "签名主执行文件: $MAIN_EXE_PATH"
-            # 强制签名，启用硬化运行时，添加时间戳
-            codesign --force --timestamp --options runtime \
-              --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" \
-              "$MAIN_EXE_PATH"
-            # 立即验证主执行文件签名
-            codesign --verify --verbose=2 "$MAIN_EXE_PATH" || {
-              echo "❌ 主执行文件签名失败"
-              exit 1
-            }
-          else
-            echo "Error: 未找到主执行文件: $MAIN_EXE_PATH"
-            exit 1
-          fi
-
-          # 2. 签名Python可执行文件
-          if [ -f "$PYTHON_EXE_PATH" ]; then
-            echo "签名Python可执行文件: $PYTHON_EXE_PATH"
-            codesign --force --timestamp --options runtime \
-              --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" \
-              "$PYTHON_EXE_PATH"
-          else
-            echo "Error: 未找到Python可执行文件: $PYTHON_EXE_PATH"
-            exit 1
-          fi
-
-          # 3. 处理python37.zip内的.dylib文件
+          ESPTOOL_PATH="$RESOURCES_PATH/resources/esptoolMac/esptool"  # 子组件：esptool
+          
+          # 1. 先处理python37.zip内的.dylib（最底层依赖）
           if [ -f "$PYTHON_ZIP_ABSOLUTE" ]; then
             echo "处理压缩包: $PYTHON_ZIP_ABSOLUTE"
             TEMP_UNZIP=$(mktemp -d)
@@ -86,7 +58,7 @@ jobs:
             
             find "$TEMP_UNZIP" -name "*.dylib" -type f -exec \
               codesign --force --timestamp --options runtime \
-              --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" {} \;
+              --sign "Developer ID Application: Petoi LLC (***)" {} \;
             
             rm -f "$PYTHON_ZIP_ABSOLUTE"
             cd "$TEMP_UNZIP" && zip -q -r "$PYTHON_ZIP_ABSOLUTE" ./*
@@ -96,37 +68,79 @@ jobs:
             echo "Error: 未找到python37.zip: $PYTHON_ZIP_ABSOLUTE"
             exit 1
           fi
-
-          # 4. 签名esptool
+          
+          # 2. 签名python可执行文件（子组件，主程序依赖）
+          if [ -f "$PYTHON_EXE_PATH" ]; then
+            echo "签名Python可执行文件: $PYTHON_EXE_PATH"
+            codesign --force --timestamp --options runtime \
+              --sign "Developer ID Application: Petoi LLC (***)" \
+              "$PYTHON_EXE_PATH"
+            # 关键：验证python签名是否成功
+            codesign --verify --verbose=2 "$PYTHON_EXE_PATH" || {
+              echo "❌ Python可执行文件签名失败"
+              exit 1
+            }
+          else
+            echo "Error: 未找到Python可执行文件: $PYTHON_EXE_PATH"
+            exit 1
+          fi
+          
+          # 3. 签名esptool（子组件）
           if [ -f "$ESPTOOL_PATH" ]; then
             echo "签名esptool: $ESPTOOL_PATH"
             codesign --force --timestamp --options runtime \
-              --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" \
+              --sign "Developer ID Application: Petoi LLC (***)" \
               "$ESPTOOL_PATH"
+            # 验证esptool签名
+            codesign --verify --verbose=2 "$ESPTOOL_PATH" || {
+              echo "❌ esptool签名失败"
+              exit 1
+            }
           else
             echo "Error: 未找到esptool: $ESPTOOL_PATH"
             exit 1
           fi
-
-          # 5. 签名所有其他可执行文件和库
+          
+          # 4. 签名其他依赖文件（.dylib、.so等）
           find "$APP_PATH" -type f \( \
             -name "*.dylib" -o -name "*.so" -o -perm +x \
           \) -print0 | while IFS= read -r -d '' file; do
-            # 跳过已单独签名的文件
+            # 跳过已签名的核心组件
             if [[ "$file" != "$PYTHON_ZIP_ABSOLUTE" && "$file" != "$MAIN_EXE_PATH" && "$file" != "$PYTHON_EXE_PATH" && "$file" != "$ESPTOOL_PATH" ]]; then
               echo "签名文件: $file"
               codesign --force --timestamp --options runtime \
-                --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" \
+                --sign "Developer ID Application: Petoi LLC (***)" \
                 "$file"
+              # 验证每个文件的签名
+              codesign --verify --verbose=1 "$file" || {
+                echo "❌ 依赖文件签名失败: $file"
+                exit 1
+              }
             fi
           done
-
-          # 6. 最终签名整个.app包（确保层级签名完整）
+          
+          # 5. 最后签名主执行文件（确保所有依赖已签名）
+          if [ -f "$MAIN_EXE_PATH" ]; then
+            echo "签名主执行文件: $MAIN_EXE_PATH"
+            codesign --force --timestamp --options runtime \
+              --sign "Developer ID Application: Petoi LLC (***)" \
+              "$MAIN_EXE_PATH"
+            # 验证主执行文件签名
+            codesign --verify --verbose=2 "$MAIN_EXE_PATH" || {
+              echo "❌ 主执行文件签名失败"
+              exit 1
+            }
+          else
+            echo "Error: 未找到主执行文件: $MAIN_EXE_PATH"
+            exit 1
+          fi
+          
+          # 6. 最终签名整个.app包（确认层级完整性）
           codesign --force --deep --strict --options runtime \
-            --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" \
+            --sign "Developer ID Application: Petoi LLC (***)" \
             --timestamp "$APP_PATH"
-
-          # 最终验证整个.app的签名
+          
+          # 最终验证整个.app
           codesign --verify --deep --strict --verbose=4 "$APP_PATH" || {
             echo "❌ .app整体签名验证失败"
             exit 1
