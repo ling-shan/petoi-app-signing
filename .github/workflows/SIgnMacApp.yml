@@ -39,17 +39,16 @@ jobs:
             exit 1
           }
 
-      - name: Code Sign (修复zip路径错误)
+      - name: Code Sign .app
         run: |
           set -ex
           APP_PATH="mac/${{ github.event.inputs.app_name }}"
           RESOURCES_PATH="$APP_PATH/Contents/Resources"
           PYTHON_EXE_PATH="$APP_PATH/Contents/MacOS/python"
-          # 关键修复：计算python37.zip的绝对路径
           PYTHON_ZIP_ABSOLUTE="$(cd "$(dirname "$RESOURCES_PATH/lib/python37.zip")" && pwd)/$(basename "$RESOURCES_PATH/lib/python37.zip")"
           ESPTOOL_PATH="$RESOURCES_PATH/resources/esptoolMac/esptool"
 
-          # 优先签名Contents/MacOS下的python可执行文件（解决核心报错）
+          # 签名Python可执行文件
           if [ -f "$PYTHON_EXE_PATH" ]; then
             echo "签名Python可执行文件: $PYTHON_EXE_PATH"
             codesign --force --timestamp --options runtime \
@@ -66,22 +65,20 @@ jobs:
             TEMP_UNZIP=$(mktemp -d)
             unzip -q "$PYTHON_ZIP_ABSOLUTE" -d "$TEMP_UNZIP"
             
-            # 签名解压后的所有.dylib文件
             find "$TEMP_UNZIP" -name "*.dylib" -type f -exec \
               codesign --force --timestamp --options runtime \
               --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" {} \;
             
-            # 关键修复：删除原文件并使用绝对路径重新压缩
-            rm -f "$PYTHON_ZIP_ABSOLUTE"  # 确保原文件被删除，避免占用
-            cd "$TEMP_UNZIP" && zip -q -r "$PYTHON_ZIP_ABSOLUTE" ./*  # 使用绝对路径输出
-            cd -  # 返回原工作目录
-            rm -rf "$TEMP_UNZIP"  # 清理临时文件
+            rm -f "$PYTHON_ZIP_ABSOLUTE"
+            cd "$TEMP_UNZIP" && zip -q -r "$PYTHON_ZIP_ABSOLUTE" ./*
+            cd -
+            rm -rf "$TEMP_UNZIP"
           else
             echo "Error: 未找到python37.zip: $PYTHON_ZIP_ABSOLUTE"
             exit 1
           fi
 
-          # 签名esptool（确保硬化运行时）
+          # 签名esptool
           if [ -f "$ESPTOOL_PATH" ]; then
             echo "签名esptool: $ESPTOOL_PATH"
             codesign --force --timestamp --options runtime \
@@ -92,11 +89,10 @@ jobs:
             exit 1
           fi
 
-          # 常规签名：覆盖所有.dylib、.so和可执行文件
+          # 常规签名所有相关文件
           find "$APP_PATH" -type f \( \
             -name "*.dylib" -o -name "*.so" -o -perm +x \
           \) -print0 | while IFS= read -r -d '' file; do
-            # 跳过已处理的zip文件（内部已签名）
             if [[ "$file" != "$PYTHON_ZIP_ABSOLUTE" ]]; then
               echo "签名文件: $file"
               codesign --force --timestamp --options runtime \
@@ -110,14 +106,14 @@ jobs:
             --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" \
             --timestamp "$APP_PATH"
 
-      - name: Verify All Signatures
+      - name: Verify .app Signatures
         run: |
           APP_PATH="mac/${{ github.event.inputs.app_name }}"
           RESOURCES_PATH="$APP_PATH/Contents/Resources"
           PYTHON_ZIP_ABSOLUTE="$(cd "$(dirname "$RESOURCES_PATH/lib/python37.zip")" && pwd)/$(basename "$RESOURCES_PATH/lib/python37.zip")"
           ESPTOOL_PATH="$RESOURCES_PATH/resources/esptoolMac/esptool"
 
-          # 验证zip内文件（临时解压检查）
+          # 验证zip内文件
           if [ -f "$PYTHON_ZIP_ABSOLUTE" ]; then
             TEMP_VERIFY=$(mktemp -d)
             unzip -q "$PYTHON_ZIP_ABSOLUTE" -d "$TEMP_VERIFY"
@@ -134,66 +130,36 @@ jobs:
             exit 1
           fi
 
-          # 验证esptool
-          codesign --verify --verbose=1 "$ESPTOOL_PATH" || {
-            echo "❌ esptool签名失败"
-            exit 1
-          }
+          # 验证esptool和.app
+          codesign --verify --verbose=1 "$ESPTOOL_PATH" || { echo "❌ esptool签名失败"; exit 1; }
+          codesign --verify --deep --verbose=4 "$APP_PATH" || { echo "❌ .app签名失败"; exit 1; }
+          echo "✅ 所有.app签名验证通过"
 
-          # 验证整个.app
-          codesign --verify --deep --verbose=4 "$APP_PATH" || {
-            echo "❌ .app签名失败"
-            exit 1
-          }
-
-          echo "✅ 所有签名验证通过"
-
-      - name: Create DMG
+      - name: Create ZIP for Notarization
         run: |
-          mkdir -p dist/dmg
-          cp -R "mac/${{ github.event.inputs.app_name }}" dist/dmg/
-          ln -s /Applications dist/dmg/Applications
-          
-          create-dmg \
-            --volname "Petoi Desktop App" \
-            --background "mac/Make_for_dmg.jpg" \
-            --window-pos 400 200 \
-            --window-size 940 580 \
-            --icon-size 100 \
-            --icon "${{ github.event.inputs.app_name }}" 180 200 \
-            --app-drop-link 420 200 \
-            --no-internet-enable \
-            "dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg" \
-            "dist/dmg/"
+          APP_PATH="mac/${{ github.event.inputs.app_name }}"
+          ZIP_PATH="dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}_notarize.zip"
+          mkdir -p dist
+          # 打包.app为ZIP（仅用于公证，不分发）
+          zip -q -r "$ZIP_PATH" "$APP_PATH"
+          echo "✅ 生成公证用ZIP: $ZIP_PATH"
 
-      - name: Sign DMG
-        run: |
-          DMG_PATH="dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg"
-          echo "签名DMG文件: $DMG_PATH"
-          codesign --force --timestamp --options runtime \
-            --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" \
-            "$DMG_PATH"
-          
-          # 验证DMG签名
-          codesign --verify --verbose=1 "$DMG_PATH" || {
-            echo "❌ DMG签名验证失败"
-            exit 1
-          }
-          echo "✅ DMG签名成功"
-
-      - name: Notarize DMG
+      - name: Notarize with ZIP
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_ID_PWD: ${{ secrets.APPLE_ID_PWD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          DMG_PATH="dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg"
+          ZIP_PATH="dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}_notarize.zip"
+          APP_PATH="mac/${{ github.event.inputs.app_name }}"
 
-          SUBMISSION_OUTPUT=$(xcrun notarytool submit "$DMG_PATH" \
+          # 提交ZIP到苹果公证
+          SUBMISSION_OUTPUT=$(xcrun notarytool submit "$ZIP_PATH" \
             --apple-id "$APPLE_ID" --password "$APPLE_ID_PWD" \
             --team-id "$APPLE_TEAM_ID" --wait --verbose 2>&1)
           echo "$SUBMISSION_OUTPUT"
 
+          # 检查公证结果
           SUBMISSION_ID=$(echo "$SUBMISSION_OUTPUT" | grep -oE 'id: [0-9a-f-]+' | cut -d' ' -f2 | head -n1)
           if [ -n "$SUBMISSION_ID" ]; then
             echo "=== 公证日志 ==="
@@ -205,43 +171,31 @@ jobs:
             echo "❌ 公证失败"
             exit 1
           fi
+          echo "✅ 公证通过"
 
-      - name: Staple Notarization Ticket to App
-        env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_ID_PWD: ${{ secrets.APPLE_ID_PWD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      - name: Staple Ticket to .app
         run: |
-          set -e
-          DMG_PATH="dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg"
+          APP_PATH="mac/${{ github.event.inputs.app_name }}"
+          # 对.app附加公证票据
+          xcrun stapler staple "$APP_PATH"
+          # 验证票据
+          xcrun stapler validate "$APP_PATH" || { echo "❌ .app票据附加失败"; exit 1; }
+          echo "✅ .app票据附加成功"
+
+      - name: Create Final DMG (for Distribution)
+        run: |
           APP_NAME="${{ github.event.inputs.app_name }}"
-          TEMP_MOUNT=$(mktemp -d)
-          TEMP_DMG_CONTENTS=$(mktemp -d)
-          
-          echo "挂载DMG: $DMG_PATH 到 $TEMP_MOUNT"
-          hdiutil attach "$DMG_PATH" -mountpoint "$TEMP_MOUNT" -nobrowse -quiet
-          
-          echo "复制.app文件到临时目录"
-          cp -R "$TEMP_MOUNT/$APP_NAME" "$TEMP_DMG_CONTENTS/"
-          
-          echo "卸载DMG"
-          hdiutil detach "$TEMP_MOUNT" -quiet
-          
-          echo "对.app文件执行stapler"
-          xcrun stapler staple "$TEMP_DMG_CONTENTS/$APP_NAME"
-          
-          echo "验证.app文件的票据"
-          xcrun stapler validate "$TEMP_DMG_CONTENTS/$APP_NAME" || {
-            echo "❌ .app票据验证失败"
-            exit 1
-          }
-          
-          echo "重新创建DMG"
-          rm -f "$DMG_PATH"
-          mkdir -p dist/dmg_new
-          cp -R "$TEMP_DMG_CONTENTS/$APP_NAME" dist/dmg_new/
-          ln -s /Applications dist/dmg_new/Applications
-          
+          APP_PATH="mac/$APP_NAME"
+          DMG_PATH="dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg"
+          mkdir -p dist/dmg_final
+
+          # 复制带票据的.app到DMG源目录
+          cp -R "$APP_PATH" dist/dmg_final/
+          # 清理可能残留的旧链接，创建Applications快捷方式
+          rm -f dist/dmg_final/Applications
+          ln -s /Applications dist/dmg_final/Applications
+
+          # 生成最终分发用DMG
           create-dmg \
             --volname "Petoi Desktop App" \
             --background "mac/Make_for_dmg.jpg" \
@@ -252,44 +206,41 @@ jobs:
             --app-drop-link 420 200 \
             --no-internet-enable \
             "$DMG_PATH" \
-            "dist/dmg_new/"
-          
-          # 清理临时文件
-          rm -rf "$TEMP_MOUNT" "$TEMP_DMG_CONTENTS" "dist/dmg_new"
-          
-          echo "✅ 成功将票据附加到.app并重新打包DMG"
+            "dist/dmg_final/"
+          echo "✅ 生成最终DMG: $DMG_PATH"
+
+      - name: Sign Final DMG
+        run: |
+          DMG_PATH="dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg"
+          # 对最终分发的DMG签名（关键步骤，确保用户能通过Gatekeeper）
+          codesign --force --timestamp --options runtime \
+            --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" \
+            "$DMG_PATH"
+          # 验证DMG签名
+          codesign --verify --verbose=1 "$DMG_PATH" || {
+            echo "❌ 最终DMG签名失败"
+            exit 1
+          }
+          echo "✅ 最终DMG签名验证通过"
 
       - name: Final Verification
         run: |
-          set -e  # 任何命令失败立即退出
+          set -e
           DMG_PATH="dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg"
           APP_NAME="${{ github.event.inputs.app_name }}"
           TEMP_MOUNT=$(mktemp -d)
-          
-          echo "挂载DMG进行最终验证: $DMG_PATH"
+
+          # 挂载最终DMG验证
           hdiutil attach "$DMG_PATH" -mountpoint "$TEMP_MOUNT" -nobrowse -quiet
-          
-          echo "验证.app的公证票据"
-          xcrun stapler validate "$TEMP_MOUNT/$APP_NAME" || {
-            echo "❌ 最终验证失败: .app票据无效"
-            exit 1
-          }
-          
-          echo "验证.app签名"
-          codesign --verify --deep --verbose=1 "$TEMP_MOUNT/$APP_NAME" || {
-            echo "❌ 最终验证失败: .app签名无效"
-            exit 1
-          }
-          
-          echo "卸载DMG"
+
+          # 验证.app票据和签名
+          xcrun stapler validate "$TEMP_MOUNT/$APP_NAME" || { echo "❌ .app票据无效"; exit 1; }
+          codesign --verify --deep --verbose=1 "$TEMP_MOUNT/$APP_NAME" || { echo "❌ .app签名无效"; exit 1; }
+
+          # 验证DMG签名
+          codesign --verify --verbose=1 "$DMG_PATH" || { echo "❌ DMG签名无效"; exit 1; }
+
           hdiutil detach "$TEMP_MOUNT" -quiet
-          
-          echo "验证DMG签名"
-          codesign --verify --verbose=1 "$DMG_PATH" || {
-            echo "❌ 最终验证失败: DMG签名无效"
-            exit 1
-          }
-          
           echo "✅ 所有最终验证通过"
 
       - name: Upload DMG
