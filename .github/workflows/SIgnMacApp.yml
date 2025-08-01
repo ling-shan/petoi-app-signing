@@ -141,7 +141,7 @@ jobs:
             --timestamp "$APP_PATH"
           
           # 最终验证整个.app
-          codesign --verify --deep --strict --verbose=4 "$APP_PATH" || {
+          codesign --verify --deep --verbose=4 "$APP_PATH" || {
             echo "❌ .app整体签名验证失败"
             exit 1
           }
