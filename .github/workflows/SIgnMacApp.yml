@@ -50,6 +50,11 @@ jobs:
           PYTHON_ZIP_ABSOLUTE="$(cd "$(dirname "$RESOURCES_PATH/lib/python37.zip")" && pwd)/$(basename "$RESOURCES_PATH/lib/python37.zip")"
           ESPTOOL_PATH="$RESOURCES_PATH/resources/esptoolMac/esptool"  # 子组件：esptool
           
+          # 6. 最终签名整个.app包（确认层级完整性）
+          codesign --force --deep --strict --options runtime \
+            --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" \
+            --timestamp "$APP_PATH"
+            
           # 1. 先处理python37.zip内的.dylib（最底层依赖）
           if [ -f "$PYTHON_ZIP_ABSOLUTE" ]; then
             echo "处理压缩包: $PYTHON_ZIP_ABSOLUTE"
@@ -134,11 +139,6 @@ jobs:
             echo "Error: 未找到主执行文件: $MAIN_EXE_PATH"
             exit 1
           fi
-          
-          # 6. 最终签名整个.app包（确认层级完整性）
-          codesign --force --deep --strict --options runtime \
-            --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" \
-            --timestamp "$APP_PATH"
           
           # 最终验证整个.app
           codesign --verify --deep --strict --verbose=4 "$APP_PATH" || {
