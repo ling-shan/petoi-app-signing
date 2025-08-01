@@ -166,6 +166,21 @@ jobs:
             "dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg" \
             "dist/dmg/"
 
+      - name: Sign DMG
+        run: |
+          DMG_PATH="dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg"
+          echo "签名DMG文件: $DMG_PATH"
+          codesign --force --timestamp --options runtime \
+            --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" \
+            "$DMG_PATH"
+          
+          # 验证DMG签名
+          codesign --verify --verbose=1 "$DMG_PATH" || {
+            echo "❌ DMG签名验证失败"
+            exit 1
+          }
+          echo "✅ DMG签名成功"
+
       - name: Notarize DMG
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
@@ -173,19 +188,6 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           DMG_PATH="dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg"
-
-          # 新增：签名DMG文件
-          echo "签名DMG文件: $DMG_PATH"
-          codesign --force --timestamp --options runtime \
-            --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" \
-            "$DMG_PATH"
-          
-          # 新增：验证DMG签名
-          codesign --verify --verbose=1 "$DMG_PATH" || {
-            echo "❌ DMG签名验证失败"
-            exit 1
-          }
-          echo "✅ DMG签名成功"
 
           SUBMISSION_OUTPUT=$(xcrun notarytool submit "$DMG_PATH" \
             --apple-id "$APPLE_ID" --password "$APPLE_ID_PWD" \
@@ -204,32 +206,91 @@ jobs:
             exit 1
           fi
 
-          xcrun stapler staple "$DMG_PATH"
-          xcrun stapler validate "$DMG_PATH"
+      - name: Staple Notarization Ticket to App
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PWD: ${{ secrets.APPLE_ID_PWD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -e
+          DMG_PATH="dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg"
+          APP_NAME="${{ github.event.inputs.app_name }}"
+          TEMP_MOUNT=$(mktemp -d)
+          TEMP_DMG_CONTENTS=$(mktemp -d)
+          
+          echo "挂载DMG: $DMG_PATH 到 $TEMP_MOUNT"
+          hdiutil attach "$DMG_PATH" -mountpoint "$TEMP_MOUNT" -nobrowse -quiet
+          
+          echo "复制.app文件到临时目录"
+          cp -R "$TEMP_MOUNT/$APP_NAME" "$TEMP_DMG_CONTENTS/"
+          
+          echo "卸载DMG"
+          hdiutil detach "$TEMP_MOUNT" -quiet
+          
+          echo "对.app文件执行stapler"
+          xcrun stapler staple "$TEMP_DMG_CONTENTS/$APP_NAME"
+          
+          echo "验证.app文件的票据"
+          xcrun stapler validate "$TEMP_DMG_CONTENTS/$APP_NAME" || {
+            echo "❌ .app票据验证失败"
+            exit 1
+          }
+          
+          echo "重新创建DMG"
+          rm -f "$DMG_PATH"
+          mkdir -p dist/dmg_new
+          cp -R "$TEMP_DMG_CONTENTS/$APP_NAME" dist/dmg_new/
+          ln -s /Applications dist/dmg_new/Applications
+          
+          create-dmg \
+            --volname "Petoi Desktop App" \
+            --background "mac/Make_for_dmg.jpg" \
+            --window-pos 400 200 \
+            --window-size 940 580 \
+            --icon-size 100 \
+            --icon "$APP_NAME" 180 200 \
+            --app-drop-link 420 200 \
+            --no-internet-enable \
+            "$DMG_PATH" \
+            "dist/dmg_new/"
+          
+          # 清理临时文件
+          rm -rf "$TEMP_MOUNT" "$TEMP_DMG_CONTENTS" "dist/dmg_new"
+          
+          echo "✅ 成功将票据附加到.app并重新打包DMG"
 
       - name: Final Verification
         run: |
           set -e  # 任何命令失败立即退出
           DMG_PATH="dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg"
           APP_NAME="${{ github.event.inputs.app_name }}"
-          TEMP_MOUNT="/tmp/dmg_mount_$(date +%s)"  # 用时间戳避免挂载点冲突
-          mkdir -p "$TEMP_MOUNT"  # 确保挂载点存在
+          TEMP_MOUNT=$(mktemp -d)
           
-          echo "验证 DMG 完整性和公证状态: $DMG_PATH"
+          echo "挂载DMG进行最终验证: $DMG_PATH"
+          hdiutil attach "$DMG_PATH" -mountpoint "$TEMP_MOUNT" -nobrowse -quiet
           
-          # 1. 检查 DMG 底层完整性
-          hdiutil verify "$DMG_PATH" || {
-            echo "❌ DMG 镜像损坏"
+          echo "验证.app的公证票据"
+          xcrun stapler validate "$TEMP_MOUNT/$APP_NAME" || {
+            echo "❌ 最终验证失败: .app票据无效"
             exit 1
           }
           
-          # 2. 验证 DMG 公证凭证
-          xcrun stapler validate "$DMG_PATH" || {
-            echo "❌ DMG 公证凭证无效"
+          echo "验证.app签名"
+          codesign --verify --deep --verbose=1 "$TEMP_MOUNT/$APP_NAME" || {
+            echo "❌ 最终验证失败: .app签名无效"
             exit 1
           }
           
-          echo "✅ 所有验证通过（DMG 完整性 + 内部 App 签名 + 公证状态）"
+          echo "卸载DMG"
+          hdiutil detach "$TEMP_MOUNT" -quiet
+          
+          echo "验证DMG签名"
+          codesign --verify --verbose=1 "$DMG_PATH" || {
+            echo "❌ 最终验证失败: DMG签名无效"
+            exit 1
+          }
+          
+          echo "✅ 所有最终验证通过"
 
       - name: Upload DMG
         uses: actions/upload-artifact@v4
