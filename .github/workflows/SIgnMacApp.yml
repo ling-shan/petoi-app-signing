@@ -39,7 +39,7 @@ jobs:
             exit 1
           }
 
-      - name: Code Sign .app (修复主执行文件签名)
+      - name: Code Sign .app
         run: |
           set -ex
           APP_PATH="mac/Petoi Desktop App.app"
@@ -49,12 +49,7 @@ jobs:
           PYTHON_EXE_PATH="$APP_PATH/Contents/MacOS/python"  # 子组件：python
           PYTHON_ZIP_ABSOLUTE="$(cd "$(dirname "$RESOURCES_PATH/lib/python37.zip")" && pwd)/$(basename "$RESOURCES_PATH/lib/python37.zip")"
           ESPTOOL_PATH="$RESOURCES_PATH/resources/esptoolMac/esptool"  # 子组件：esptool
-          
-          # 6. 最终签名整个.app包（确认层级完整性）
-          codesign --force --deep --strict --options runtime \
-            --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" \
-            --timestamp "$APP_PATH"
-            
+
           # 1. 先处理python37.zip内的.dylib（最底层依赖）
           if [ -f "$PYTHON_ZIP_ABSOLUTE" ]; then
             echo "处理压缩包: $PYTHON_ZIP_ABSOLUTE"
@@ -141,7 +136,12 @@ jobs:
           fi
           
           # 最终验证整个.app
-          codesign --verify --deep --strict --verbose=4 "$APP_PATH" || {
+          # 6. 最终签名整个.app包（确认层级完整性）
+          codesign --force --deep --strict --options runtime \
+            --sign "Developer ID Application: Petoi LLC (H98JHTT3JH)" \
+            --timestamp "$APP_PATH"
+            
+          codesign --verify --deep --strict --verbose=4 "$$APP_PATH" || {
             echo "❌ .app整体签名验证失败"
             exit 1
           }
