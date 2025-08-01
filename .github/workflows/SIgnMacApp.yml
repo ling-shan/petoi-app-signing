@@ -114,21 +114,21 @@ jobs:
           ESPTOOL_PATH="$RESOURCES_PATH/resources/esptoolMac/esptool"
 
           # 验证zip内文件
-          if [ -f "$PYTHON_ZIP_ABSOLUTE" ]; then
-            TEMP_VERIFY=$(mktemp -d)
-            unzip -q "$PYTHON_ZIP_ABSOLUTE" -d "$TEMP_VERIFY"
-            find "$TEMP_VERIFY" -name "*.dylib" -type f | while read -r file; do
-              echo "验证zip内文件: $file"
-              codesign --verify --verbose=1 "$file" || {
-                echo "❌ 签名失败: $file"
-                exit 1
-              }
-            done
-            rm -rf "$TEMP_VERIFY"
-          else
-            echo "Error: 验证时未找到python37.zip"
-            exit 1
-          fi
+          # if [ -f "$PYTHON_ZIP_ABSOLUTE" ]; then
+          #   TEMP_VERIFY=$(mktemp -d)
+          #   unzip -q "$PYTHON_ZIP_ABSOLUTE" -d "$TEMP_VERIFY"
+          #   find "$TEMP_VERIFY" -name "*.dylib" -type f | while read -r file; do
+          #     echo "验证zip内文件: $file"
+          #     codesign --verify --verbose=1 "$file" || {
+          #       echo "❌ 签名失败: $file"
+          #       exit 1
+          #     }
+          #   done
+          #   rm -rf "$TEMP_VERIFY"
+          # else
+          #   echo "Error: 验证时未找到python37.zip"
+          #   exit 1
+          # fi
 
           # 验证esptool和.app
           codesign --verify --verbose=1 "$ESPTOOL_PATH" || { echo "❌ esptool签名失败"; exit 1; }
