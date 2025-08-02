@@ -28,9 +28,10 @@ jobs:
       - name: Unzip Application
         run: |
           cd mac
+          pwd
           APP_NAME="Petoi Desktop App.app"
-
-          unzip "Petoi Desktop App.zip"
+          unzip -o -q "Petoi Desktop App.zip" -d .
+          ls -l "$APP_NAME"
           # clean the previous app's signature. it's important step
           find "$APP_NAME" -type f -exec codesign --remove-signature {} \;
           // there is a bug in python 3.7, we missed the site.pyo in this directory, so re-generate here.
