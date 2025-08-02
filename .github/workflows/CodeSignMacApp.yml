@@ -28,6 +28,8 @@ jobs:
       - name: Unzip Application
         run: |
           cd mac
+          APP_NAME="Petoi Desktop App.app"
+
           unzip "Petoi Desktop App.zip"
           # clean the previous app's signature. it's important step
           find "$APP_NAME" -type f -exec codesign --remove-signature {} \;
