@@ -2,3 +2,4 @@
 dist/
 mac/__MACOSX/
 .DS_Store
+generate_signing_script.sh
