@@ -27,6 +27,7 @@ jobs:
       
       - name: Unzip Application
         run: |
+          cd mac
           unzip "Petoi Desktop App.zip"
           # clean the previous app's signature. it's important step
           find "$APP_NAME" -type f -exec codesign --remove-signature {} \;
@@ -34,9 +35,11 @@ jobs:
           if [ ! -f "$APP_NAME/Contents/Resources/site.pyo" ]; then
               cp "$APP_NAME/Contents/Resources/site.pyc" "$APP_NAME/Contents/Resources/site.pyo"
           fi
+          cd -
 
       - name: Code Sign Application
         run: |
+          cd mac
           APP_NAME="Petoi Desktop App.app"
           RESOURCES_PATH="$APP_NAME/Contents/Resources"
           SIGN_IDENTITY="Developer ID Application: Petoi LLC (H98JHTT3JH)"
@@ -77,9 +80,11 @@ jobs:
               echo "❌ Overall .app signature verification failed"
               exit 1
           }
+          cd -
 
       - name: Notarize Application
         run: |
+          cd mac
           APP_NAME="Petoi Desktop App.app"
           APP_VER=${{ github.event.inputs.app_version }}
           APPLE_ID="${{ secrets.APPLE_ID }}"
@@ -105,9 +110,10 @@ jobs:
           xcrun stapler validate "$APP_NAME" || { echo "❌ .app stapling failed"; exit 1; }
           spctl -a -v "$APP_NAME"  || { echo "❌ .app verification failed"; exit 1; }
           echo "✅ .app verification and stapling successful"
-
+          cd -
       - name: Create Distribution DMG
         run: |
+          cd mac
           APP_NAME="Petoi Desktop App.app"
           APP_VER=${{ github.event.inputs.app_version }}
           DISTR_DMG_PATH="dist/Petoi_Desktop_App_$APP_VER.dmg"
@@ -135,10 +141,10 @@ jobs:
               exit 1
           }
           echo "✅ Final DMG signing verification passed"
-
+          cd mac
       - name: Upload DMG
         uses: actions/upload-artifact@v4
         with:
           name: Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg
-          path: dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg
+          path: mac/dist/Petoi_Desktop_App_${{ github.event.inputs.app_version }}.dmg
           retention-days: 30
