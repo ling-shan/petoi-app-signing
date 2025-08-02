@@ -27,6 +27,8 @@ jobs:
       
       - name: Unzip Application
         run: |
+          set -ex
+
           unzip mac/Petoi\ Desktop\ App.zip -d mac/
 
           cd mac
@@ -41,6 +43,8 @@ jobs:
 
       - name: Code Sign Application
         run: |
+          set -ex
+          pwd
           cd mac
           APP_NAME="Petoi Desktop App.app"
           RESOURCES_PATH="$APP_NAME/Contents/Resources"
@@ -82,10 +86,11 @@ jobs:
               echo "❌ Overall .app signature verification failed"
               exit 1
           }
-          cd -
 
       - name: Notarize Application
         run: |
+          set -ex
+          pwd
           cd mac
           APP_NAME="Petoi Desktop App.app"
           APP_VER=${{ github.event.inputs.app_version }}
@@ -112,9 +117,10 @@ jobs:
           xcrun stapler validate "$APP_NAME" || { echo "❌ .app stapling failed"; exit 1; }
           spctl -a -v "$APP_NAME"  || { echo "❌ .app verification failed"; exit 1; }
           echo "✅ .app verification and stapling successful"
-          cd -
       - name: Create Distribution DMG
         run: |
+          set -ex
+          pwd
           cd mac
           APP_NAME="Petoi Desktop App.app"
           APP_VER=${{ github.event.inputs.app_version }}
@@ -143,7 +149,6 @@ jobs:
               exit 1
           }
           echo "✅ Final DMG signing verification passed"
-          cd mac
       - name: Upload DMG
         uses: actions/upload-artifact@v4
         with:
