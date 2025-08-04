@@ -70,6 +70,7 @@ jobs:
               --timestamp "$APP_NAME/Contents/Resources/resources/avrdudeMac/avrdude"
           codesign --force --options runtime \
               --sign "$SIGN_IDENTITY" --deep \
+              --entitlements "entitlements.plist" \
               --timestamp "$APP_NAME/Contents/Resources/resources/esptoolMac/esptool"
           codesign --force --options runtime \
               --sign "$SIGN_IDENTITY" \
