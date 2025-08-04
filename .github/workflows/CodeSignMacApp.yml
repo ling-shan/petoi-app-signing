@@ -69,7 +69,7 @@ jobs:
               --sign "$SIGN_IDENTITY" \
               --timestamp "$APP_NAME/Contents/Resources/resources/avrdudeMac/avrdude"
           codesign --force --options runtime \
-              --sign "$SIGN_IDENTITY" \
+              --sign "$SIGN_IDENTITY" --deep \
               --timestamp "$APP_NAME/Contents/Resources/resources/esptoolMac/esptool"
           codesign --force --options runtime \
               --sign "$SIGN_IDENTITY" \
